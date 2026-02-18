@@ -745,7 +745,7 @@ do
 				end
 
 				local Button = Library:CreateLabel({
-					Active = false;
+					Active = true;
 					Size = UDim2.new(1, 0, 0, 15);
 					TextSize = 13;
 					Text = Str;
@@ -1105,7 +1105,7 @@ do
 			local ModeButton = {};
 
 			local Label = Library:CreateLabel({
-				Active = false;
+				Active = true;
 				Size = UDim2.new(1, 0, 0, 15);
 				TextSize = 13;
 				Text = Mode;
@@ -1435,6 +1435,7 @@ do
 
 		local function CreateBaseButton(Button)
 			local Outer = Library:Create('Frame', {
+				Active = true;
 				BackgroundColor3 = Color3.new(0, 0, 0);
 				BorderColor3 = Color3.new(0, 0, 0);
 				Size = UDim2.new(1, -4, 0, 20);
@@ -1910,6 +1911,7 @@ do
 		});
 
 		local ToggleRegion = Library:Create('Frame', {
+			Active = true;
 			BackgroundTransparency = 1;
 			Size = UDim2.new(0, 170, 1, 0);
 			ZIndex = 8;
@@ -2243,6 +2245,7 @@ do
 		end;
 
 		local DropdownOuter = Library:Create('Frame', {
+			Active = true;
 			BackgroundColor3 = Color3.new(0, 0, 0);
 			BorderColor3 = Color3.new(0, 0, 0);
 			Size = UDim2.new(1, -4, 0, 20);
@@ -2437,7 +2440,7 @@ do
 				});
 
 				local ButtonLabel = Library:CreateLabel({
-					Active = false;
+					Active = true;
 					Size = UDim2.new(1, -6, 1, 0);
 					Position = UDim2.new(0, 6, 0, 0);
 					TextSize = 14;
@@ -3433,6 +3436,7 @@ function Library:CreateWindow(...)
 				local Tab = {};
 
 				local Button = Library:Create('Frame', {
+					Active = true;
 					BackgroundColor3 = Library.MainColor;
 					BorderColor3 = Color3.new(0, 0, 0);
 					Size = UDim2.new(0.5, 0, 1, 0);
