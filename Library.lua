@@ -766,6 +766,9 @@ do
 
                     Callback()
                 end)
+                button.TouchTap:Connect(function()
+                    Callback()
+                end)
             end
 
             ContextMenu:AddOption('Copy color', function()
@@ -1131,11 +1134,16 @@ do
             end;
 
             Label.InputBegan:Connect(function(Input)
-                if Input.UserInputType == Enum.UserInputType.MouseButton1 or Input.UserInputType == Enum.UserInputType.Touch then
+                if Input.UserInputType == Enum.UserInputType.MouseButton1 then
                     ModeButton:Select();
                     Library:AttemptSave();
                 end;
             end);
+
+            Label.TouchTap:Connect(function()
+                ModeButton:Select();
+                Library:AttemptSave();
+            end)
 
             if Mode == KeyPicker.Mode then
                 ModeButton:Select();
@@ -1227,7 +1235,7 @@ do
         local Picking = false;
 
         PickOuter.InputBegan:Connect(function(Input)
-            if (Input.UserInputType == Enum.UserInputType.MouseButton1 or Input.UserInputType == Enum.UserInputType.Touch) and not Library:MouseIsOverOpenedFrame() then
+            if (Input.UserInputType == Enum.UserInputType.MouseButton1) and not Library:MouseIsOverOpenedFrame() then
                 Picking = true;
 
                 DisplayLabel.Text = '';
@@ -1302,7 +1310,7 @@ do
                 KeyPicker:Update();
             end;
 
-            if Input.UserInputType == Enum.UserInputType.MouseButton1 or Input.UserInputType == Enum.UserInputType.Touch then
+            if Input.UserInputType == Enum.UserInputType.MouseButton1 then
                 local AbsPos, AbsSize = ModeSelectOuter.AbsolutePosition, ModeSelectOuter.AbsoluteSize;
 
                 if Mouse.X < AbsPos.X or Mouse.X > AbsPos.X + AbsSize.X
@@ -1402,7 +1410,7 @@ do
         return Label;
     end;
 
-    function Funcs:AddButton(...)
+    function Funcs:(...)
         -- TODO: Eventually redo this
         local Button = {};
         local function ProcessButtonParams(Class, Obj, ...)
@@ -1499,7 +1507,7 @@ do
                     return false
                 end
 
-                if Input.UserInputType ~= Enum.UserInputType.MouseButton1 and Input.UserInputType ~= Enum.UserInputType.Touch then
+                if Input.UserInputType ~= Enum.UserInputType.MouseButton1 then
                     return false
                 end
 
@@ -1508,6 +1516,35 @@ do
 
             Button.Outer.InputBegan:Connect(function(Input)
                 if not ValidateClick(Input) then return end
+                if Button.Locked then return end
+
+                if Button.DoubleClick then
+                    Library:RemoveFromRegistry(Button.Label)
+                    Library:AddToRegistry(Button.Label, { TextColor3 = 'AccentColor' })
+
+                    Button.Label.TextColor3 = Library.AccentColor
+                    Button.Label.Text = 'Are you sure?'
+                    Button.Locked = true
+
+                    local clicked = WaitForEvent(Button.Outer.InputBegan, 0.5, ValidateClick)
+
+                    Library:RemoveFromRegistry(Button.Label)
+                    Library:AddToRegistry(Button.Label, { TextColor3 = 'FontColor' })
+
+                    Button.Label.TextColor3 = Library.FontColor
+                    Button.Label.Text = Button.Text
+                    task.defer(rawset, Button, 'Locked', false)
+
+                    if clicked then
+                        Library:SafeCallback(Button.Func)
+                    end
+
+                    return
+                end
+
+                Library:SafeCallback(Button.Func);
+            end)
+            Button.Outer.TouchTap:Connect(function()
                 if Button.Locked then return end
 
                 if Button.DoubleClick then
@@ -1551,7 +1588,7 @@ do
         end
 
 
-        function Button:AddButton(...)
+        function Button:(...)
             local SubButton = {}
 
             ProcessButtonParams('SubButton', SubButton, ...)
@@ -1924,11 +1961,19 @@ do
         end;
 
         ToggleRegion.InputBegan:Connect(function(Input)
-            if (Input.UserInputType == Enum.UserInputType.MouseButton1 or Input.UserInputType == Enum.UserInputType.Touch) and not Library:MouseIsOverOpenedFrame() then
+            if (Input.UserInputType == Enum.UserInputType.MouseButton1) and not Library:MouseIsOverOpenedFrame() then
                 Toggle:SetValue(not Toggle.Value) -- Why was it not like this from the start?
                 Library:AttemptSave();
             end;
         end);
+
+        ToggleRegion.TouchTap:Connect(function()
+            if Library:MouseIsOverOpenedFrame() then
+                return
+            end
+            Toggle:SetValue(not Toggle.Value) -- Why was it not like this from the start?
+            Library:AttemptSave();
+        end)
 
         if Toggle.Risky then
             Library:RemoveFromRegistry(ToggleLabel)
@@ -2427,7 +2472,7 @@ do
                 end;
 
                 ButtonLabel.InputBegan:Connect(function(Input)
-                    if Input.UserInputType == Enum.UserInputType.MouseButton1 or Input.UserInputType == Enum.UserInputType.Touch then
+                    if Input.UserInputType == Enum.UserInputType.MouseButton1 then
                         local Try = not Selected;
 
                         if Dropdown:GetActiveValues() == 1 and (not Try) and (not Info.AllowNull) then
@@ -2464,6 +2509,43 @@ do
                         end;
                     end;
                 end);
+
+                ButtonLabel.TouchTap:Connect(function()
+                    local Try = not Selected;
+
+                    if Dropdown:GetActiveValues() == 1 and (not Try) and (not Info.AllowNull) then
+                    else
+                        if Info.Multi then
+                            Selected = Try;
+
+                            if Selected then
+                                Dropdown.Value[Value] = true;
+                            else
+                                Dropdown.Value[Value] = nil;
+                            end;
+                        else
+                            Selected = Try;
+
+                            if Selected then
+                                Dropdown.Value = Value;
+                            else
+                                Dropdown.Value = nil;
+                            end;
+
+                            for _, OtherButton in next, Buttons do
+                                OtherButton:UpdateButton();
+                            end;
+                        end;
+
+                        Table:UpdateButton();
+                        Dropdown:Display();
+
+                        Library:SafeCallback(Dropdown.Callback, Dropdown.Value);
+                        Library:SafeCallback(Dropdown.Changed, Dropdown.Value);
+
+                        Library:AttemptSave();
+                    end;
+                end)
 
                 Table:UpdateButton();
                 Dropdown:Display();
@@ -2528,7 +2610,7 @@ do
         end;
 
         DropdownOuter.InputBegan:Connect(function(Input)
-            if (Input.UserInputType == Enum.UserInputType.MouseButton1 or Input.UserInputType == Enum.UserInputType.Touch) and not Library:MouseIsOverOpenedFrame() then
+            if (Input.UserInputType == Enum.UserInputType.MouseButton1) and not Library:MouseIsOverOpenedFrame() then
                 if ListOuter.Visible then
                     Dropdown:CloseDropdown();
                 else
@@ -2536,6 +2618,14 @@ do
                 end;
             end;
         end);
+
+        DropdownOuter.TouchTap:Connect(function()
+            if ListOuter.Visible then
+                Dropdown:CloseDropdown();
+            else
+                Dropdown:OpenDropdown();
+            end;
+        end)
 
         InputService.InputBegan:Connect(function(Input)
             if Input.UserInputType == Enum.UserInputType.MouseButton1 or Input.UserInputType == Enum.UserInputType.Touch then
@@ -3443,11 +3533,19 @@ function Library:CreateWindow(...)
                 end;
 
                 Button.InputBegan:Connect(function(Input)
-                    if (Input.UserInputType == Enum.UserInputType.MouseButton1 or Input.UserInputType == Enum.UserInputType.Touch) and not Library:MouseIsOverOpenedFrame() then
+                    if (Input.UserInputType == Enum.UserInputType.MouseButton1) and not Library:MouseIsOverOpenedFrame() then
                         Tab:Show();
                         Tab:Resize();
                     end;
                 end);
+
+                Button.TouchTap:Connect(function()
+                    if Library:MouseIsOverOpenedFrame() then
+                        return
+                    end
+                    Tab:Show();
+                    Tab:Resize();
+                end)
 
                 Tab.Container = Container;
                 Tabbox.Tabs[Name] = Tab;
