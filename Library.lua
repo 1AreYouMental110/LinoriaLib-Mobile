@@ -1410,7 +1410,7 @@ do
         return Label;
     end;
 
-    function Funcs:(...)
+    function Funcs:AddButton(...)
         -- TODO: Eventually redo this
         local Button = {};
         local function ProcessButtonParams(Class, Obj, ...)
@@ -1588,7 +1588,7 @@ do
         end
 
 
-        function Button:(...)
+        function Button:AddButton(...)
             local SubButton = {}
 
             ProcessButtonParams('SubButton', SubButton, ...)
