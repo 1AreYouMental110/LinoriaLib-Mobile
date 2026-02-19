@@ -74,12 +74,39 @@ function Library:DisconnectList(list)
 end
 
 function Library:DisconnectFor(instance)
+	do
+	local LastPointer = InputService:GetMouseLocation()
+
+	Library:GiveSignal(InputService.InputChanged:Connect(function(input)
+		if input.Position then
+			LastPointer = input.Position
+		end
+	end))
+
+	Library:GiveSignal(RunService.RenderStepped:Connect(function()
+		LastPointer = InputService:GetMouseLocation()
+	end))
+
+	function Library.GetPointer()
+		return LastPointer
+	end
+
+	function Library.GetPointerX()
+		return LastPointer.X
+	end
+
+	function Library.GetPointerY()
+		return LastPointer.Y
+	end
+    end
 	local list = self._instanceTracked[instance]
 	if list then
 		self:DisconnectList(list)
 		self._instanceTracked[instance] = nil
 	end
 end
+
+
 
 local RainbowStep = 0
 local Hue = 0
@@ -197,32 +224,41 @@ function Library:CreateLabel(Properties, IsHud)
 end;
 
 function Library:MakeDraggable(Instance, Cutoff)
-	Instance.Active = true;
+	Instance.Active = true
 
 	Instance.InputBegan:Connect(function(Input)
-		if Input.UserInputType == Enum.UserInputType.MouseButton1 or Input.UserInputType == Enum.UserInputType.Touch then
+		if Input.UserInputType == Enum.UserInputType.MouseButton1
+		or Input.UserInputType == Enum.UserInputType.Touch then
+
+			local startX = Library.GetPointerX()
+			local startY = Library.GetPointerY()
+
 			local ObjPos = Vector2.new(
-				Mouse.X - Instance.AbsolutePosition.X,
-				Mouse.Y - Instance.AbsolutePosition.Y
-			);
+				startX - Instance.AbsolutePosition.X,
+				startY - Instance.AbsolutePosition.Y
+			)
 
 			if ObjPos.Y > (Cutoff or 40) then
-				return;
-			end;
+				return
+			end
 
-			while InputService:IsMouseButtonPressed(Enum.UserInputType.MouseButton1) do
+			while InputService:IsMouseButtonPressed(Enum.UserInputType.MouseButton1)
+			or InputService.TouchEnabled do
+
+				if not Instance.Parent then break end
+
 				Instance.Position = UDim2.new(
 					0,
-					Mouse.X - ObjPos.X + (Instance.AbsoluteSize.X * Instance.AnchorPoint.X),
+					Library.GetPointerX() - ObjPos.X + (Instance.AbsoluteSize.X * Instance.AnchorPoint.X),
 					0,
-					Mouse.Y - ObjPos.Y + (Instance.AbsoluteSize.Y * Instance.AnchorPoint.Y)
-				);
+					Library.GetPointerY() - ObjPos.Y + (Instance.AbsoluteSize.Y * Instance.AnchorPoint.Y)
+				)
 
-				RenderStepped:Wait();
-			end;
-		end;
+				RunService.RenderStepped:Wait()
+			end
+		end
 	end)
-end;
+end
 
 function Library:AddToolTip(InfoStr, HoverInstance)
 	local X, Y = Library:GetTextBounds(InfoStr, Library.Font, 14);
@@ -267,12 +303,12 @@ function Library:AddToolTip(InfoStr, HoverInstance)
 
 		IsHovering = true
 
-		Tooltip.Position = UDim2.fromOffset(Mouse.X + 15, Mouse.Y + 12)
+		Tooltip.Position = UDim2.fromOffset(Library.GetPointerX() + 15, Library.GetPointerY() + 12)
 		Tooltip.Visible = true
 
 		while IsHovering do
 			RunService.Heartbeat:Wait()
-			Tooltip.Position = UDim2.fromOffset(Mouse.X + 15, Mouse.Y + 12)
+			Tooltip.Position = UDim2.fromOffset(Library.GetPointerX() + 15, Library.GetPointerY() + 12)
 		end
 	end)
 
@@ -309,26 +345,30 @@ function Library:OnHighlight(HighlightInstance, Instance, Properties, Properties
 end;
 
 function Library:MouseIsOverOpenedFrame()
-	for Frame, _ in next, Library.OpenedFrames do
-		local AbsPos, AbsSize = Frame.AbsolutePosition, Frame.AbsoluteSize;
+	local px = Library.GetPointerX()
+	local py = Library.GetPointerY()
 
-		if Mouse.X >= AbsPos.X and Mouse.X <= AbsPos.X + AbsSize.X
-			and Mouse.Y >= AbsPos.Y and Mouse.Y <= AbsPos.Y + AbsSize.Y then
+	for Frame in next, Library.OpenedFrames do
+		local AbsPos = Frame.AbsolutePosition
+		local AbsSize = Frame.AbsoluteSize
 
-			return true;
-		end;
-	end;
-end;
+		if px >= AbsPos.X and px <= AbsPos.X + AbsSize.X
+		and py >= AbsPos.Y and py <= AbsPos.Y + AbsSize.Y then
+			return true
+		end
+	end
+end
 
 function Library:IsMouseOverFrame(Frame)
-	local AbsPos, AbsSize = Frame.AbsolutePosition, Frame.AbsoluteSize;
+	local px = Library.GetPointerX()
+	local py = Library.GetPointerY()
 
-	if Mouse.X >= AbsPos.X and Mouse.X <= AbsPos.X + AbsSize.X
-		and Mouse.Y >= AbsPos.Y and Mouse.Y <= AbsPos.Y + AbsSize.Y then
+	local AbsPos = Frame.AbsolutePosition
+	local AbsSize = Frame.AbsoluteSize
 
-		return true;
-	end;
-end;
+	return px >= AbsPos.X and px <= AbsPos.X + AbsSize.X
+		and py >= AbsPos.Y and py <= AbsPos.Y + AbsSize.Y
+end
 
 function Library:UpdateDependencyBoxes()
 	for _, Depbox in next, Library.DependencyBoxes do
@@ -950,11 +990,11 @@ do
 				while InputService:IsMouseButtonPressed(Enum.UserInputType.MouseButton1) do
 					local MinX = SatVibMap.AbsolutePosition.X;
 					local MaxX = MinX + SatVibMap.AbsoluteSize.X;
-					local MouseX = math.clamp(Mouse.X, MinX, MaxX);
+					local MouseX = math.clamp(Library.GetPointerX(), MinX, MaxX);
 
 					local MinY = SatVibMap.AbsolutePosition.Y;
 					local MaxY = MinY + SatVibMap.AbsoluteSize.Y;
-					local MouseY = math.clamp(Mouse.Y, MinY, MaxY);
+					local MouseY = math.clamp(Library.GetPointerY(), MinY, MaxY);
 
 					ColorPicker.Sat = (MouseX - MinX) / (MaxX - MinX);
 					ColorPicker.Vib = 1 - ((MouseY - MinY) / (MaxY - MinY));
@@ -972,7 +1012,7 @@ do
 				while InputService:IsMouseButtonPressed(Enum.UserInputType.MouseButton1) do
 					local MinY = HueSelectorInner.AbsolutePosition.Y;
 					local MaxY = MinY + HueSelectorInner.AbsoluteSize.Y;
-					local MouseY = math.clamp(Mouse.Y, MinY, MaxY);
+					local MouseY = math.clamp(Library.GetPointerY(), MinY, MaxY);
 
 					ColorPicker.Hue = ((MouseY - MinY) / (MaxY - MinY));
 					ColorPicker:Display();
@@ -1003,7 +1043,7 @@ do
 					while InputService:IsMouseButtonPressed(Enum.UserInputType.MouseButton1) do
 						local MinX = TransparencyBoxInner.AbsolutePosition.X;
 						local MaxX = MinX + TransparencyBoxInner.AbsoluteSize.X;
-						local MouseX = math.clamp(Mouse.X, MinX, MaxX);
+						local MouseX = math.clamp(Library.GetPointerX(), MinX, MaxX);
 
 						ColorPicker.Transparency = 1 - ((MouseX - MinX) / (MaxX - MinX));
 
@@ -1021,8 +1061,8 @@ do
 			if Input.UserInputType == Enum.UserInputType.MouseButton1 or Input.UserInputType == Enum.UserInputType.Touch then
 				local AbsPos, AbsSize = PickerFrameOuter.AbsolutePosition, PickerFrameOuter.AbsoluteSize;
 
-				if Mouse.X < AbsPos.X or Mouse.X > AbsPos.X + AbsSize.X
-					or Mouse.Y < (AbsPos.Y - 20 - 1) or Mouse.Y > AbsPos.Y + AbsSize.Y then
+				if Library.GetPointerX() < AbsPos.X or Library.GetPointerX() > AbsPos.X + AbsSize.X
+					or Library.GetPointerY() < (AbsPos.Y - 20 - 1) or Library.GetPointerY() > AbsPos.Y + AbsSize.Y then
 
 					ColorPicker:Hide();
 				end;
@@ -1358,8 +1398,8 @@ do
 			if Input.UserInputType == Enum.UserInputType.MouseButton1 then
 				local AbsPos, AbsSize = ModeSelectOuter.AbsolutePosition, ModeSelectOuter.AbsoluteSize;
 
-				if Mouse.X < AbsPos.X or Mouse.X > AbsPos.X + AbsSize.X
-					or Mouse.Y < (AbsPos.Y - 20 - 1) or Mouse.Y > AbsPos.Y + AbsSize.Y then
+				if Library.GetPointerX() < AbsPos.X or Library.GetPointerX() > AbsPos.X + AbsSize.X
+					or Library.GetPointerY() < (AbsPos.Y - 20 - 1) or Library.GetPointerY() > AbsPos.Y + AbsSize.Y then
 
 					ModeSelectOuter.Visible = false;
 				end;
@@ -2204,12 +2244,12 @@ do
 
 		SliderInner.InputBegan:Connect(function(Input)
 			if (Input.UserInputType == Enum.UserInputType.MouseButton1 or Input.UserInputType == Enum.UserInputType.Touch) and not Library:MouseIsOverOpenedFrame() then
-				local mPos = Mouse.X;
+				local mPos = Library.GetPointerX();
 				local gPos = Fill.Size.X.Offset;
 				local Diff = mPos - (Fill.AbsolutePosition.X + gPos);
 
 				while InputService:IsMouseButtonPressed(Enum.UserInputType.MouseButton1) do
-					local nMPos = Mouse.X;
+					local nMPos = Library.GetPointerX();
 					local nX = math.clamp(gPos + (nMPos - mPos) + Diff, 0, Slider.MaxSize);
 
 					local nValue = Slider:GetValueFromXOffset(nX);
@@ -2679,8 +2719,8 @@ do
 			if Input.UserInputType == Enum.UserInputType.MouseButton1 or Input.UserInputType == Enum.UserInputType.Touch then
 				local AbsPos, AbsSize = ListOuter.AbsolutePosition, ListOuter.AbsoluteSize;
 
-				if Mouse.X < AbsPos.X or Mouse.X > AbsPos.X + AbsSize.X
-					or Mouse.Y < (AbsPos.Y - 20 - 1) or Mouse.Y > AbsPos.Y + AbsSize.Y then
+				if Library.GetPointerX() < AbsPos.X or Library.GetPointerX() > AbsPos.X + AbsSize.X
+					or Library.GetPointerY() < (AbsPos.Y - 20 - 1) or Library.GetPointerY() > AbsPos.Y + AbsSize.Y then
 
 					Dropdown:CloseDropdown();
 				end;
