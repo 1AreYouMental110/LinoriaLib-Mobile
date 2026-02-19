@@ -12,10 +12,48 @@ local Mouse = LocalPlayer:GetMouse()
 local ProtectGui = protectgui or (syn and syn.protect_gui) or (function() end);
 
 local ScreenGui = Instance.new('ScreenGui');
+do
+	local scale = Instance.new("UIScale")
+	scale.Scale = 1
+	scale.Parent = ScreenGui
+
+	local function updateScale()
+		local size = workspace.CurrentCamera.ViewportSize
+		if size.X < 900 then
+			scale.Scale = math.clamp(size.X / 900, 0.75, 1)
+		else
+			scale.Scale = 1
+		end
+	end
+
+	updateScale()
+	workspace.CurrentCamera:GetPropertyChangedSignal("ViewportSize"):Connect(updateScale)
+end
 ProtectGui(ScreenGui);
 
 ScreenGui.ZIndexBehavior = Enum.ZIndexBehavior.Global;
 ScreenGui.Parent = CoreGui;
+do
+	local GuiService = game:GetService("GuiService")
+	local Camera = workspace.CurrentCamera
+
+	local function applySafeArea()
+		local inset = GuiService:GetGuiInset()
+		ScreenGui.IgnoreGuiInset = true
+
+		for _, v in next, ScreenGui:GetChildren() do
+			if v:IsA("Frame") then
+				if not v:GetAttribute("SafeAdjusted") then
+					v.Position = v.Position + UDim2.fromOffset(0, inset.Y)
+					v:SetAttribute("SafeAdjusted", true)
+				end
+			end
+		end
+	end
+
+	applySafeArea()
+	Camera:GetPropertyChangedSignal("ViewportSize"):Connect(applySafeArea)
+end
 
 local Toggles = {};
 local Options = {};
@@ -74,7 +112,14 @@ function Library:DisconnectList(list)
 end
 
 function Library:DisconnectFor(instance)
-	do
+	local list = self._instanceTracked[instance]
+	if list then
+		self:DisconnectList(list)
+		self._instanceTracked[instance] = nil
+	end
+end
+
+do
 	local LastPointer = InputService:GetMouseLocation()
 
 	Library:GiveSignal(InputService.InputChanged:Connect(function(input)
@@ -98,14 +143,7 @@ function Library:DisconnectFor(instance)
 	function Library.GetPointerY()
 		return LastPointer.Y
 	end
-    end
-	local list = self._instanceTracked[instance]
-	if list then
-		self:DisconnectList(list)
-		self._instanceTracked[instance] = nil
-	end
 end
-
 
 
 local RainbowStep = 0
@@ -987,7 +1025,7 @@ do
 
 		SatVibMap.InputBegan:Connect(function(Input)
 			if Input.UserInputType == Enum.UserInputType.MouseButton1 or Input.UserInputType == Enum.UserInputType.Touch then
-				while InputService:IsMouseButtonPressed(Enum.UserInputType.MouseButton1) do
+				while InputService:IsMouseButtonPressed(Enum.UserInputType.MouseButton1) or InputService.TouchEnabled do
 					local MinX = SatVibMap.AbsolutePosition.X;
 					local MaxX = MinX + SatVibMap.AbsoluteSize.X;
 					local MouseX = math.clamp(Library.GetPointerX(), MinX, MaxX);
@@ -1009,7 +1047,7 @@ do
 
 		HueSelectorInner.InputBegan:Connect(function(Input)
 			if Input.UserInputType == Enum.UserInputType.MouseButton1 or Input.UserInputType == Enum.UserInputType.Touch then
-				while InputService:IsMouseButtonPressed(Enum.UserInputType.MouseButton1) do
+				while InputService:IsMouseButtonPressed(Enum.UserInputType.MouseButton1) or InputService.TouchEnabled do
 					local MinY = HueSelectorInner.AbsolutePosition.Y;
 					local MaxY = MinY + HueSelectorInner.AbsoluteSize.Y;
 					local MouseY = math.clamp(Library.GetPointerY(), MinY, MaxY);
@@ -1040,7 +1078,7 @@ do
 		if TransparencyBoxInner then
 			TransparencyBoxInner.InputBegan:Connect(function(Input)
 				if Input.UserInputType == Enum.UserInputType.MouseButton1 or Input.UserInputType == Enum.UserInputType.Touch then
-					while InputService:IsMouseButtonPressed(Enum.UserInputType.MouseButton1) do
+					while InputService:IsMouseButtonPressed(Enum.UserInputType.MouseButton1) or InputService.TouchEnabled do
 						local MinX = TransparencyBoxInner.AbsolutePosition.X;
 						local MaxX = MinX + TransparencyBoxInner.AbsoluteSize.X;
 						local MouseX = math.clamp(Library.GetPointerX(), MinX, MaxX);
@@ -2248,7 +2286,7 @@ do
 				local gPos = Fill.Size.X.Offset;
 				local Diff = mPos - (Fill.AbsolutePosition.X + gPos);
 
-				while InputService:IsMouseButtonPressed(Enum.UserInputType.MouseButton1) do
+				while InputService:IsMouseButtonPressed(Enum.UserInputType.MouseButton1) or InputService.TouchEnabled do
 					local nMPos = Library.GetPointerX();
 					local nX = math.clamp(gPos + (nMPos - mPos) + Diff, 0, Slider.MaxSize);
 
@@ -3124,7 +3162,7 @@ function Library:CreateWindow(...)
 	if type(Config.TabPadding) ~= 'number' then Config.TabPadding = 0 end
 	if type(Config.MenuFadeTime) ~= 'number' then Config.MenuFadeTime = 0.2 end
 
-	if typeof(Config.Position) ~= 'UDim2' then Config.Position = UDim2.fromOffset(175, 50) end
+	if typeof(Config.Position) ~= 'UDim2' then 	Config.Position = InputService.TouchEnabled 		and UDim2.fromOffset(50, 120) 		or UDim2.fromOffset(175, 50) end
 	if typeof(Config.Size) ~= 'UDim2' then Config.Size = UDim2.fromOffset(550, 600) end
 
 	if Config.Center then
@@ -3207,6 +3245,7 @@ function Library:CreateWindow(...)
 		Size = UDim2.new(1, -16, 0, 21);
 		ZIndex = 1;
 		Parent = MainSectionInner;
+		ClipsDescendants = false;
 	});
 
 	local TabListLayout = Library:Create('UIListLayout', {
