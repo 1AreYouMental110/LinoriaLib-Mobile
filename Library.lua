@@ -6,8 +6,8 @@ local Players = game:GetService('Players');
 local RunService = game:GetService('RunService')
 local TweenService = game:GetService('TweenService');
 local RenderStepped = RunService.RenderStepped;
-local LocalPlayer = Players.LocalPlayer;
-local Mouse = LocalPlayer:GetMouse();
+local LocalPlayer = Players.LocalPlayer or Players.PlayerAdded:Wait()
+local Mouse = LocalPlayer:GetMouse()
 
 local ProtectGui = protectgui or (syn and syn.protect_gui) or (function() end);
 
@@ -45,6 +45,41 @@ local Library = {
 	Signals = {};
 	ScreenGui = ScreenGui;
 };
+
+Library._tracked = {}
+Library._instanceTracked = setmetatable({}, { __mode = 'k' })
+
+function Library:Track(connection)
+	table.insert(self._tracked, connection)
+	return connection
+end
+
+function Library:TrackFor(instance, connection)
+	local t = self._instanceTracked[instance]
+	if not t then
+		t = {}
+		self._instanceTracked[instance] = t
+	end
+	table.insert(t, connection)
+	return connection
+end
+
+function Library:DisconnectList(list)
+	for i = #list, 1, -1 do
+		local c = table.remove(list, i)
+		if c and c.Disconnect then
+			pcall(function() c:Disconnect() end)
+		end
+	end
+end
+
+function Library:DisconnectFor(instance)
+	local list = self._instanceTracked[instance]
+	if list then
+		self:DisconnectList(list)
+		self._instanceTracked[instance] = nil
+	end
+end
 
 local RainbowStep = 0
 local Hue = 0
@@ -380,28 +415,37 @@ function Library:GiveSignal(Signal)
 end
 
 function Library:Unload()
-	-- Unload all of the signals
-	for Idx = #Library.Signals, 1, -1 do
-		local Connection = table.remove(Library.Signals, Idx)
-		Connection:Disconnect()
+	for i = #self.Signals, 1, -1 do
+		local c = table.remove(self.Signals, i)
+		if c and c.Disconnect then
+			pcall(function() c:Disconnect() end)
+		end
 	end
 
-	 -- Call our unload callback, maybe to undo some hooks etc
-	if Library.OnUnload then
-		Library.OnUnload()
+	self:DisconnectList(self._tracked)
+
+	for inst, _ in next, self._instanceTracked do
+		self:DisconnectFor(inst)
 	end
 
-	ScreenGui:Destroy()
+	if self.OnUnload then
+		pcall(self.OnUnload)
+	end
+
+	if self.ScreenGui and self.ScreenGui.Destroy then
+		pcall(function() self.ScreenGui:Destroy() end)
+	end
 end
 
 function Library:OnUnload(Callback)
 	Library.OnUnload = Callback
 end
 
-Library:GiveSignal(ScreenGui.DescendantRemoving:Connect(function(Instance)
-	if Library.RegistryMap[Instance] then
-		Library:RemoveFromRegistry(Instance);
-	end;
+Library:GiveSignal(ScreenGui.DescendantRemoving:Connect(function(instance)
+	Library:DisconnectFor(instance)
+	if Library.RegistryMap[instance] then
+		Library:RemoveFromRegistry(instance)
+	end
 end))
 
 local BaseAddons = {};
@@ -468,9 +512,10 @@ do
 			Parent = ScreenGui,
 		});
 
-		DisplayFrame:GetPropertyChangedSignal('AbsolutePosition'):Connect(function()
-			PickerFrameOuter.Position = UDim2.fromOffset(DisplayFrame.AbsolutePosition.X, DisplayFrame.AbsolutePosition.Y + 18);
-		end)
+	local conn = DisplayFrame:GetPropertyChangedSignal('AbsolutePosition'):Connect(function()
+    PickerFrameOuter.Position = UDim2.fromOffset(DisplayFrame.AbsolutePosition.X, DisplayFrame.AbsolutePosition.Y + 18)
+	end)
+	Library:TrackFor(DisplayFrame, conn)
 
 		local PickerFrameInner = Library:Create('Frame', {
 			BackgroundColor3 = Library.BackgroundColor;
