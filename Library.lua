@@ -6,16 +6,54 @@ local Players = game:GetService('Players');
 local RunService = game:GetService('RunService')
 local TweenService = game:GetService('TweenService');
 local RenderStepped = RunService.RenderStepped;
-local LocalPlayer = Players.LocalPlayer;
-local Mouse = LocalPlayer:GetMouse();
+local LocalPlayer = Players.LocalPlayer or Players.PlayerAdded:Wait()
+local Mouse = LocalPlayer:GetMouse()
 
 local ProtectGui = protectgui or (syn and syn.protect_gui) or (function() end);
 
 local ScreenGui = Instance.new('ScreenGui');
+do
+	local scale = Instance.new("UIScale")
+	scale.Scale = 1
+	scale.Parent = ScreenGui
+
+	local function updateScale()
+		local size = workspace.CurrentCamera.ViewportSize
+		if size.X < 900 then
+			scale.Scale = math.clamp(size.X / 900, 0.75, 1)
+		else
+			scale.Scale = 1
+		end
+	end
+
+	updateScale()
+	workspace.CurrentCamera:GetPropertyChangedSignal("ViewportSize"):Connect(updateScale)
+end
 ProtectGui(ScreenGui);
 
 ScreenGui.ZIndexBehavior = Enum.ZIndexBehavior.Global;
 ScreenGui.Parent = CoreGui;
+do
+	local GuiService = game:GetService("GuiService")
+	local Camera = workspace.CurrentCamera
+
+	local function applySafeArea()
+		local inset = GuiService:GetGuiInset()
+		ScreenGui.IgnoreGuiInset = true
+
+		for _, v in next, ScreenGui:GetChildren() do
+			if v:IsA("Frame") then
+				if not v:GetAttribute("SafeAdjusted") then
+					v.Position = v.Position + UDim2.fromOffset(0, inset.Y)
+					v:SetAttribute("SafeAdjusted", true)
+				end
+			end
+		end
+	end
+
+	applySafeArea()
+	Camera:GetPropertyChangedSignal("ViewportSize"):Connect(applySafeArea)
+end
 
 local Toggles = {};
 local Options = {};
@@ -45,6 +83,68 @@ local Library = {
 	Signals = {};
 	ScreenGui = ScreenGui;
 };
+
+Library._tracked = {}
+Library._instanceTracked = setmetatable({}, { __mode = 'k' })
+
+function Library:Track(connection)
+	table.insert(self._tracked, connection)
+	return connection
+end
+
+function Library:TrackFor(instance, connection)
+	local t = self._instanceTracked[instance]
+	if not t then
+		t = {}
+		self._instanceTracked[instance] = t
+	end
+	table.insert(t, connection)
+	return connection
+end
+
+function Library:DisconnectList(list)
+	for i = #list, 1, -1 do
+		local c = table.remove(list, i)
+		if c and c.Disconnect then
+			pcall(function() c:Disconnect() end)
+		end
+	end
+end
+
+function Library:DisconnectFor(instance)
+	local list = self._instanceTracked[instance]
+	if list then
+		self:DisconnectList(list)
+		self._instanceTracked[instance] = nil
+	end
+end
+
+do
+	local LastPointer = InputService:GetMouseLocation()
+
+	Library:GiveSignal(InputService.InputChanged:Connect(function(input)
+		if input.Position then
+			LastPointer = input.Position
+		end
+	end))
+
+	Library:GiveSignal(RunService.RenderStepped:Connect(function()
+		LastPointer = InputService:GetMouseLocation()
+	end))
+
+	function Library.GetPointer()
+		return LastPointer
+	end
+
+	function Library.GetPointerX()
+		return LastPointer.X
+	end
+
+	function Library.GetPointerY()
+		return LastPointer.Y
+	end
+end
+
 
 local RainbowStep = 0
 local Hue = 0
@@ -162,32 +262,41 @@ function Library:CreateLabel(Properties, IsHud)
 end;
 
 function Library:MakeDraggable(Instance, Cutoff)
-	Instance.Active = true;
+	Instance.Active = true
 
 	Instance.InputBegan:Connect(function(Input)
-		if Input.UserInputType == Enum.UserInputType.MouseButton1 or Input.UserInputType == Enum.UserInputType.Touch then
+		if Input.UserInputType == Enum.UserInputType.MouseButton1
+		or Input.UserInputType == Enum.UserInputType.Touch then
+
+			local startX = Library.GetPointerX()
+			local startY = Library.GetPointerY()
+
 			local ObjPos = Vector2.new(
-				Mouse.X - Instance.AbsolutePosition.X,
-				Mouse.Y - Instance.AbsolutePosition.Y
-			);
+				startX - Instance.AbsolutePosition.X,
+				startY - Instance.AbsolutePosition.Y
+			)
 
 			if ObjPos.Y > (Cutoff or 40) then
-				return;
-			end;
+				return
+			end
 
-			while InputService:IsMouseButtonPressed(Enum.UserInputType.MouseButton1) do
+			while InputService:IsMouseButtonPressed(Enum.UserInputType.MouseButton1)
+			or InputService.TouchEnabled do
+
+				if not Instance.Parent then break end
+
 				Instance.Position = UDim2.new(
 					0,
-					Mouse.X - ObjPos.X + (Instance.AbsoluteSize.X * Instance.AnchorPoint.X),
+					Library.GetPointerX() - ObjPos.X + (Instance.AbsoluteSize.X * Instance.AnchorPoint.X),
 					0,
-					Mouse.Y - ObjPos.Y + (Instance.AbsoluteSize.Y * Instance.AnchorPoint.Y)
-				);
+					Library.GetPointerY() - ObjPos.Y + (Instance.AbsoluteSize.Y * Instance.AnchorPoint.Y)
+				)
 
-				RenderStepped:Wait();
-			end;
-		end;
+				RunService.RenderStepped:Wait()
+			end
+		end
 	end)
-end;
+end
 
 function Library:AddToolTip(InfoStr, HoverInstance)
 	local X, Y = Library:GetTextBounds(InfoStr, Library.Font, 14);
@@ -232,12 +341,12 @@ function Library:AddToolTip(InfoStr, HoverInstance)
 
 		IsHovering = true
 
-		Tooltip.Position = UDim2.fromOffset(Mouse.X + 15, Mouse.Y + 12)
+		Tooltip.Position = UDim2.fromOffset(Library.GetPointerX() + 15, Library.GetPointerY() + 12)
 		Tooltip.Visible = true
 
 		while IsHovering do
 			RunService.Heartbeat:Wait()
-			Tooltip.Position = UDim2.fromOffset(Mouse.X + 15, Mouse.Y + 12)
+			Tooltip.Position = UDim2.fromOffset(Library.GetPointerX() + 15, Library.GetPointerY() + 12)
 		end
 	end)
 
@@ -274,26 +383,30 @@ function Library:OnHighlight(HighlightInstance, Instance, Properties, Properties
 end;
 
 function Library:MouseIsOverOpenedFrame()
-	for Frame, _ in next, Library.OpenedFrames do
-		local AbsPos, AbsSize = Frame.AbsolutePosition, Frame.AbsoluteSize;
+	local px = Library.GetPointerX()
+	local py = Library.GetPointerY()
 
-		if Mouse.X >= AbsPos.X and Mouse.X <= AbsPos.X + AbsSize.X
-			and Mouse.Y >= AbsPos.Y and Mouse.Y <= AbsPos.Y + AbsSize.Y then
+	for Frame in next, Library.OpenedFrames do
+		local AbsPos = Frame.AbsolutePosition
+		local AbsSize = Frame.AbsoluteSize
 
-			return true;
-		end;
-	end;
-end;
+		if px >= AbsPos.X and px <= AbsPos.X + AbsSize.X
+		and py >= AbsPos.Y and py <= AbsPos.Y + AbsSize.Y then
+			return true
+		end
+	end
+end
 
 function Library:IsMouseOverFrame(Frame)
-	local AbsPos, AbsSize = Frame.AbsolutePosition, Frame.AbsoluteSize;
+	local px = Library.GetPointerX()
+	local py = Library.GetPointerY()
 
-	if Mouse.X >= AbsPos.X and Mouse.X <= AbsPos.X + AbsSize.X
-		and Mouse.Y >= AbsPos.Y and Mouse.Y <= AbsPos.Y + AbsSize.Y then
+	local AbsPos = Frame.AbsolutePosition
+	local AbsSize = Frame.AbsoluteSize
 
-		return true;
-	end;
-end;
+	return px >= AbsPos.X and px <= AbsPos.X + AbsSize.X
+		and py >= AbsPos.Y and py <= AbsPos.Y + AbsSize.Y
+end
 
 function Library:UpdateDependencyBoxes()
 	for _, Depbox in next, Library.DependencyBoxes do
@@ -380,28 +493,37 @@ function Library:GiveSignal(Signal)
 end
 
 function Library:Unload()
-	-- Unload all of the signals
-	for Idx = #Library.Signals, 1, -1 do
-		local Connection = table.remove(Library.Signals, Idx)
-		Connection:Disconnect()
+	for i = #self.Signals, 1, -1 do
+		local c = table.remove(self.Signals, i)
+		if c and c.Disconnect then
+			pcall(function() c:Disconnect() end)
+		end
 	end
 
-	 -- Call our unload callback, maybe to undo some hooks etc
-	if Library.OnUnload then
-		Library.OnUnload()
+	self:DisconnectList(self._tracked)
+
+	for inst, _ in next, self._instanceTracked do
+		self:DisconnectFor(inst)
 	end
 
-	ScreenGui:Destroy()
+	if self.OnUnload then
+		pcall(self.OnUnload)
+	end
+
+	if self.ScreenGui and self.ScreenGui.Destroy then
+		pcall(function() self.ScreenGui:Destroy() end)
+	end
 end
 
 function Library:OnUnload(Callback)
 	Library.OnUnload = Callback
 end
 
-Library:GiveSignal(ScreenGui.DescendantRemoving:Connect(function(Instance)
-	if Library.RegistryMap[Instance] then
-		Library:RemoveFromRegistry(Instance);
-	end;
+Library:GiveSignal(ScreenGui.DescendantRemoving:Connect(function(instance)
+	Library:DisconnectFor(instance)
+	if Library.RegistryMap[instance] then
+		Library:RemoveFromRegistry(instance)
+	end
 end))
 
 local BaseAddons = {};
@@ -468,9 +590,10 @@ do
 			Parent = ScreenGui,
 		});
 
-		DisplayFrame:GetPropertyChangedSignal('AbsolutePosition'):Connect(function()
-			PickerFrameOuter.Position = UDim2.fromOffset(DisplayFrame.AbsolutePosition.X, DisplayFrame.AbsolutePosition.Y + 18);
-		end)
+	local conn = DisplayFrame:GetPropertyChangedSignal('AbsolutePosition'):Connect(function()
+    PickerFrameOuter.Position = UDim2.fromOffset(DisplayFrame.AbsolutePosition.X, DisplayFrame.AbsolutePosition.Y + 18)
+	end)
+	Library:TrackFor(DisplayFrame, conn)
 
 		local PickerFrameInner = Library:Create('Frame', {
 			BackgroundColor3 = Library.BackgroundColor;
@@ -902,14 +1025,14 @@ do
 
 		SatVibMap.InputBegan:Connect(function(Input)
 			if Input.UserInputType == Enum.UserInputType.MouseButton1 or Input.UserInputType == Enum.UserInputType.Touch then
-				while InputService:IsMouseButtonPressed(Enum.UserInputType.MouseButton1) do
+				while InputService:IsMouseButtonPressed(Enum.UserInputType.MouseButton1) or InputService.TouchEnabled do
 					local MinX = SatVibMap.AbsolutePosition.X;
 					local MaxX = MinX + SatVibMap.AbsoluteSize.X;
-					local MouseX = math.clamp(Mouse.X, MinX, MaxX);
+					local MouseX = math.clamp(Library.GetPointerX(), MinX, MaxX);
 
 					local MinY = SatVibMap.AbsolutePosition.Y;
 					local MaxY = MinY + SatVibMap.AbsoluteSize.Y;
-					local MouseY = math.clamp(Mouse.Y, MinY, MaxY);
+					local MouseY = math.clamp(Library.GetPointerY(), MinY, MaxY);
 
 					ColorPicker.Sat = (MouseX - MinX) / (MaxX - MinX);
 					ColorPicker.Vib = 1 - ((MouseY - MinY) / (MaxY - MinY));
@@ -924,10 +1047,10 @@ do
 
 		HueSelectorInner.InputBegan:Connect(function(Input)
 			if Input.UserInputType == Enum.UserInputType.MouseButton1 or Input.UserInputType == Enum.UserInputType.Touch then
-				while InputService:IsMouseButtonPressed(Enum.UserInputType.MouseButton1) do
+				while InputService:IsMouseButtonPressed(Enum.UserInputType.MouseButton1) or InputService.TouchEnabled do
 					local MinY = HueSelectorInner.AbsolutePosition.Y;
 					local MaxY = MinY + HueSelectorInner.AbsoluteSize.Y;
-					local MouseY = math.clamp(Mouse.Y, MinY, MaxY);
+					local MouseY = math.clamp(Library.GetPointerY(), MinY, MaxY);
 
 					ColorPicker.Hue = ((MouseY - MinY) / (MaxY - MinY));
 					ColorPicker:Display();
@@ -955,10 +1078,10 @@ do
 		if TransparencyBoxInner then
 			TransparencyBoxInner.InputBegan:Connect(function(Input)
 				if Input.UserInputType == Enum.UserInputType.MouseButton1 or Input.UserInputType == Enum.UserInputType.Touch then
-					while InputService:IsMouseButtonPressed(Enum.UserInputType.MouseButton1) do
+					while InputService:IsMouseButtonPressed(Enum.UserInputType.MouseButton1) or InputService.TouchEnabled do
 						local MinX = TransparencyBoxInner.AbsolutePosition.X;
 						local MaxX = MinX + TransparencyBoxInner.AbsoluteSize.X;
-						local MouseX = math.clamp(Mouse.X, MinX, MaxX);
+						local MouseX = math.clamp(Library.GetPointerX(), MinX, MaxX);
 
 						ColorPicker.Transparency = 1 - ((MouseX - MinX) / (MaxX - MinX));
 
@@ -976,8 +1099,8 @@ do
 			if Input.UserInputType == Enum.UserInputType.MouseButton1 or Input.UserInputType == Enum.UserInputType.Touch then
 				local AbsPos, AbsSize = PickerFrameOuter.AbsolutePosition, PickerFrameOuter.AbsoluteSize;
 
-				if Mouse.X < AbsPos.X or Mouse.X > AbsPos.X + AbsSize.X
-					or Mouse.Y < (AbsPos.Y - 20 - 1) or Mouse.Y > AbsPos.Y + AbsSize.Y then
+				if Library.GetPointerX() < AbsPos.X or Library.GetPointerX() > AbsPos.X + AbsSize.X
+					or Library.GetPointerY() < (AbsPos.Y - 20 - 1) or Library.GetPointerY() > AbsPos.Y + AbsSize.Y then
 
 					ColorPicker:Hide();
 				end;
@@ -1313,8 +1436,8 @@ do
 			if Input.UserInputType == Enum.UserInputType.MouseButton1 then
 				local AbsPos, AbsSize = ModeSelectOuter.AbsolutePosition, ModeSelectOuter.AbsoluteSize;
 
-				if Mouse.X < AbsPos.X or Mouse.X > AbsPos.X + AbsSize.X
-					or Mouse.Y < (AbsPos.Y - 20 - 1) or Mouse.Y > AbsPos.Y + AbsSize.Y then
+				if Library.GetPointerX() < AbsPos.X or Library.GetPointerX() > AbsPos.X + AbsSize.X
+					or Library.GetPointerY() < (AbsPos.Y - 20 - 1) or Library.GetPointerY() > AbsPos.Y + AbsSize.Y then
 
 					ModeSelectOuter.Visible = false;
 				end;
@@ -2159,12 +2282,12 @@ do
 
 		SliderInner.InputBegan:Connect(function(Input)
 			if (Input.UserInputType == Enum.UserInputType.MouseButton1 or Input.UserInputType == Enum.UserInputType.Touch) and not Library:MouseIsOverOpenedFrame() then
-				local mPos = Mouse.X;
+				local mPos = Library.GetPointerX();
 				local gPos = Fill.Size.X.Offset;
 				local Diff = mPos - (Fill.AbsolutePosition.X + gPos);
 
-				while InputService:IsMouseButtonPressed(Enum.UserInputType.MouseButton1) do
-					local nMPos = Mouse.X;
+				while InputService:IsMouseButtonPressed(Enum.UserInputType.MouseButton1) or InputService.TouchEnabled do
+					local nMPos = Library.GetPointerX();
 					local nX = math.clamp(gPos + (nMPos - mPos) + Diff, 0, Slider.MaxSize);
 
 					local nValue = Slider:GetValueFromXOffset(nX);
@@ -2634,8 +2757,8 @@ do
 			if Input.UserInputType == Enum.UserInputType.MouseButton1 or Input.UserInputType == Enum.UserInputType.Touch then
 				local AbsPos, AbsSize = ListOuter.AbsolutePosition, ListOuter.AbsoluteSize;
 
-				if Mouse.X < AbsPos.X or Mouse.X > AbsPos.X + AbsSize.X
-					or Mouse.Y < (AbsPos.Y - 20 - 1) or Mouse.Y > AbsPos.Y + AbsSize.Y then
+				if Library.GetPointerX() < AbsPos.X or Library.GetPointerX() > AbsPos.X + AbsSize.X
+					or Library.GetPointerY() < (AbsPos.Y - 20 - 1) or Library.GetPointerY() > AbsPos.Y + AbsSize.Y then
 
 					Dropdown:CloseDropdown();
 				end;
@@ -3039,7 +3162,7 @@ function Library:CreateWindow(...)
 	if type(Config.TabPadding) ~= 'number' then Config.TabPadding = 0 end
 	if type(Config.MenuFadeTime) ~= 'number' then Config.MenuFadeTime = 0.2 end
 
-	if typeof(Config.Position) ~= 'UDim2' then Config.Position = UDim2.fromOffset(175, 50) end
+	if typeof(Config.Position) ~= 'UDim2' then 	Config.Position = InputService.TouchEnabled 		and UDim2.fromOffset(50, 120) 		or UDim2.fromOffset(175, 50) end
 	if typeof(Config.Size) ~= 'UDim2' then Config.Size = UDim2.fromOffset(550, 600) end
 
 	if Config.Center then
@@ -3122,6 +3245,7 @@ function Library:CreateWindow(...)
 		Size = UDim2.new(1, -16, 0, 21);
 		ZIndex = 1;
 		Parent = MainSectionInner;
+		ClipsDescendants = false;
 	});
 
 	local TabListLayout = Library:Create('UIListLayout', {
