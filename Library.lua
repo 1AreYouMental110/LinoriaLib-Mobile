@@ -3116,11 +3116,15 @@ function Library:CreateWindow(...)
 		BackgroundColor3 = 'BackgroundColor';
 	});
 
-	local TabArea = Library:Create('Frame', {
+	local TabArea = Library:Create('ScrollingFrame', {
 		BackgroundTransparency = 1;
 		Position = UDim2.new(0, 8, 0, 8);
 		Size = UDim2.new(1, -16, 0, 21);
 		ZIndex = 1;
+		CanvasSize = UDim2.new(10,0,0,0);
+		AutomaticCanvasSize = Enum.AutomaticSize.X;
+		ScrollingDirection = Enum.ScrollingDirection.X;
+		ScrollBarThickness = 0;
 		Parent = MainSectionInner;
 	});
 
@@ -3193,13 +3197,17 @@ function Library:CreateWindow(...)
 			BackgroundColor3 = 'MainColor';
 		});
 
-		local TabFrame = Library:Create('Frame', {
+		local TabFrame = Library:Create('ScrollingFrame', {
 			Name = 'TabFrame',
 			BackgroundTransparency = 1;
 			Position = UDim2.new(0, 0, 0, 0);
 			Size = UDim2.new(1, 0, 1, 0);
 			Visible = false;
 			ZIndex = 2;
+			CanvasSize = UDim2.new(5,0,0,0);
+			AutomaticCanvasSize = Enum.AutomaticSize.Y;
+			ScrollingDirection = Enum.ScrollingDirection.Y;
+			ScrollBarImageTransparency = 0.8;
 			Parent = TabContainer;
 		});
 
