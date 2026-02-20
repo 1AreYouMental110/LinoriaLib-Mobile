@@ -3131,6 +3131,7 @@ function Library:CreateWindow(...)
 	local TabListLayout = Library:Create('UIListLayout', {
 		Padding = UDim.new(0, Config.TabPadding);
 		FillDirection = Enum.FillDirection.Horizontal;
+		VerticalAlignment = Enum.VerticalAlignment.Center;
 		SortOrder = Enum.SortOrder.LayoutOrder;
 		Parent = TabArea;
 	});
@@ -3165,7 +3166,7 @@ function Library:CreateWindow(...)
 		local TabButton = Library:Create('Frame', {
 			BackgroundColor3 = Library.BackgroundColor;
 			BorderColor3 = Library.OutlineColor;
-			Size = UDim2.new(0, TabButtonWidth + 8 + 4, 1, 0);
+			Size = UDim2.new(0, TabButtonWidth + 8 + 4, 1, -2);
 			ZIndex = 1;
 			Parent = TabArea;
 		});
@@ -3207,7 +3208,7 @@ function Library:CreateWindow(...)
 			CanvasSize = UDim2.new(0,0,5,0);
 			AutomaticCanvasSize = Enum.AutomaticSize.Y;
 			ScrollingDirection = Enum.ScrollingDirection.Y;
-			ScrollBarImageTransparency = 0.8;
+			ScrollBarThickness = 0;
 			Parent = TabContainer;
 		});
 
