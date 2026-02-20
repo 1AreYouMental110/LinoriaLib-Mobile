@@ -87,6 +87,11 @@ local Library = {
 Library._tracked = {}
 Library._instanceTracked = setmetatable({}, { __mode = 'k' })
 
+function Library:GiveSignal(Signal)
+	-- Only used for signals not attached to library instances, as those should be cleaned up on object destruction by Roblox
+	table.insert(Library.Signals, Signal)
+end
+
 function Library:Track(connection)
 	table.insert(self._tracked, connection)
 	return connection
@@ -486,11 +491,6 @@ function Library:UpdateColorsUsingRegistry()
 		end;
 	end;
 end;
-
-function Library:GiveSignal(Signal)
-	-- Only used for signals not attached to library instances, as those should be cleaned up on object destruction by Roblox
-	table.insert(Library.Signals, Signal)
-end
 
 function Library:Unload()
 	for i = #self.Signals, 1, -1 do
