@@ -3204,7 +3204,7 @@ function Library:CreateWindow(...)
 			Size = UDim2.new(1, 0, 1, 0);
 			Visible = false;
 			ZIndex = 2;
-			CanvasSize = UDim2.new(5,0,0,0);
+			CanvasSize = UDim2.new(0,0,5,0);
 			AutomaticCanvasSize = Enum.AutomaticSize.Y;
 			ScrollingDirection = Enum.ScrollingDirection.Y;
 			ScrollBarImageTransparency = 0.8;
